@@ -1,0 +1,7 @@
+execution:
+  wait_between_sets: 10
+openai:
+  api_key: your-openai-api-key-here
+prompt:
+  greeting: C(・ω・ )つ みんなー！
+  template: あなたは研究者です。{論文テキスト}を、中学生が興味を持ってくれるように、論文の新規性を面白く紹介する文章を230文字以内で作成してください。テンション高く、ゆるキャラ風の文体で書いてください。絵文字も使って良いです。
