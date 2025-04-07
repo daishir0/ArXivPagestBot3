@@ -10,15 +10,26 @@ from datetime import datetime
 import shutil
 from collections import defaultdict
 
-def classify_logs_by_date(summary_dir):
-    """サマリーファイルを日付ごとに分類する"""
+def classify_logs_by_date(summary_dir, filter_keywords=None):
+    """
+    サマリーファイルを日付ごとに分類する
+    
+    Args:
+        summary_dir (str): サマリーファイルのディレクトリ
+        filter_keywords (list, optional): フィルタリングするキーワードのリスト
+        
+    Returns:
+        defaultdict: 日付ごとの論文情報
+    """
     date_logs = defaultdict(list)
     
     # サマリーファイルを検索
     summary_files = glob.glob(os.path.join(summary_dir, '*_summary.json'))
     if not summary_files:
-        logging.warning("サマリーファイルが見つかりません。")
+        logging.warning(f"サマリーファイルが見つかりません: {summary_dir}")
         return date_logs
+    
+    logging.info(f"サマリーファイル数: {len(summary_files)}")
     
     for summary_file in summary_files:
         try:
@@ -30,21 +41,44 @@ def classify_logs_by_date(summary_dir):
             if timestamp:
                 date = timestamp.split()[0]  # YYYY-MM-DD
                 
+                # キーワードフィルタリング
+                if filter_keywords:
+                    # サマリーデータにキーワード情報がある場合
+                    paper_keywords = summary_data.get('keywords', '').lower()
+                    paper_title = summary_data.get('title', '').lower()
+                    paper_summary = summary_data.get('summary', '').lower()
+                    
+                    # いずれかのキーワードが含まれているか確認
+                    match_found = False
+                    for keyword in filter_keywords:
+                        keyword = keyword.lower()
+                        if (keyword in paper_keywords or
+                            keyword in paper_title or
+                            keyword in paper_summary):
+                            match_found = True
+                            break
+                    
+                    # マッチしない場合はスキップ
+                    if not match_found:
+                        continue
+                
                 # 論文情報を作成
                 paper_info = {
                     'title': summary_data.get('title', 'Unknown'),
                     'timestamp': timestamp,
                     'formatted_date': datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S").strftime("%Y年%m月%d日 %H:%M"),
                     'arxiv_id': summary_data.get('arxiv_id'),
-                    'summary': summary_data.get('summary', '要約情報がありません。')
+                    'summary': summary_data.get('summary', '要約情報がありません。'),
+                    'keywords': summary_data.get('keywords', '')
                 }
                 date_logs[date].append(paper_info)
         except Exception as e:
             logging.error(f"サマリーファイル {summary_file} の解析エラー: {str(e)}")
     
+    logging.info(f"分類された論文数: {sum(len(papers) for papers in date_logs.values())}")
     return date_logs
 
-def generate_webpage(summary_dir, output_dir, current_only=False, current_date=None, verbose=False):
+def generate_webpage(summary_dir, output_dir, current_only=False, current_date=None, verbose=False, filter_keywords=None):
     """Webページを生成する"""
     # 出力ディレクトリを作成
     os.makedirs(output_dir, exist_ok=True)
@@ -172,7 +206,7 @@ def generate_webpage(summary_dir, output_dir, current_only=False, current_date=N
         f.write(js_content)
     
     # サマリーファイルを日付ごとに分類
-    date_logs = classify_logs_by_date(summary_dir)
+    date_logs = classify_logs_by_date(summary_dir, filter_keywords)
     
     # 日付でソート
     dates = sorted(date_logs.keys(), reverse=True)

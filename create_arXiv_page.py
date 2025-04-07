@@ -114,6 +114,10 @@ def main():
         '例: /var/www/html/arXiv'
     )
     parser.add_argument(
+        '--summary-dir',
+        help='サマリーファイルの保存先ディレクトリ。指定しない場合は出力ディレクトリ名から自動生成されます。'
+    )
+    parser.add_argument(
         '--force',
         action='store_true',
         help='キャッシュを無視して強制的に再処理する'
@@ -144,6 +148,18 @@ def main():
 
     # 必要なディレクトリを設定
     dirs = setup_directories()
+    
+    # サマリーディレクトリを設定（指定がない場合は出力ディレクトリ名から自動生成）
+    if args.summary_dir:
+        summary_dir = args.summary_dir
+    else:
+        # 出力ディレクトリ名から自動生成
+        output_dir_name = os.path.basename(os.path.normpath(args.output_dir))
+        summary_dir = os.path.join(dirs['summary'], output_dir_name)
+    
+    # サマリーディレクトリを作成
+    os.makedirs(summary_dir, exist_ok=True)
+    logging.info(f"サマリーディレクトリを設定: {summary_dir}")
 
     # OpenAIクライアントを初期化
     openai_client = OpenAI(api_key=config['openai']['api_key'])
@@ -195,7 +211,7 @@ def main():
         paper_key = get_cache_key("paper", paper_id=paper_id)
 
         # サマリーファイルが存在するか確認
-        summary_file = os.path.join(dirs['summary'], f"{paper_id}_summary.json")
+        summary_file = os.path.join(summary_dir, f"{paper_id}_summary.json")
         if os.path.exists(summary_file) and not args.force:
             logging.info(f"論文キャッシュを使用: {paper_id}")
             continue
@@ -208,7 +224,8 @@ def main():
             openai_client,
             config,
             force_process=True,  # 強制的に処理を実行
-            skip_twitter=True  # Twitter投稿は常にスキップ
+            skip_twitter=True,  # Twitter投稿は常にスキップ
+            summary_dir=summary_dir  # カスタムサマリーディレクトリを指定
         )
         if success:
             paper_data = {
@@ -223,7 +240,8 @@ def main():
 
     # HTMLページを生成
     logging.info(f"HTMLページを生成: {args.output_dir}")
-    generate_webpage(dirs['summary'], args.output_dir)
+    # キーワードフィルタを使用してHTMLページを生成
+    generate_webpage(summary_dir, args.output_dir, filter_keywords=args.keywords)
 
     logging.info("処理が完了しました")
 

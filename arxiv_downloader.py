@@ -184,7 +184,7 @@ def download_pdf(paper, download_dir, force_download=False):
         logging.error(f"ダウンロード失敗: {arxiv_id} - エラー: {str(e)}")
         return False, None, arxiv_id_without_ext
 
-def process_paper(paper, dirs, openai_client, config, force_process=False, skip_twitter=False):
+def process_paper(paper, dirs, openai_client, config, force_process=False, skip_twitter=False, summary_dir=None):
     """
     論文を処理する（ダウンロード、テキスト抽出、要約生成）
     
@@ -195,10 +195,14 @@ def process_paper(paper, dirs, openai_client, config, force_process=False, skip_
         config (dict): 設定情報
         force_process (bool): 処理済みの論文も強制的に処理するかどうか
         skip_twitter (bool): Twitter投稿をスキップするかどうか
+        summary_dir (str, optional): カスタムサマリーディレクトリ。指定しない場合はdirs['summary']を使用
     
     Returns:
         bool: 処理が成功したかどうか
     """
+    # サマリーディレクトリを設定
+    if summary_dir is None:
+        summary_dir = dirs['summary']
     # 1. PDFをダウンロード
     logging.info(f"論文 '{paper.title}' のPDFをダウンロード中...")
     start_time = time.time()
@@ -230,7 +234,7 @@ def process_paper(paper, dirs, openai_client, config, force_process=False, skip_
         openai_client,
         paper_text,
         config['prompt']['template'],
-        dirs['summary'],
+        summary_dir,
         paper.title,
         arxiv_id
     )
@@ -258,10 +262,11 @@ def process_paper(paper, dirs, openai_client, config, force_process=False, skip_
         summary['post_text'] = post_text
     
     # サマリーファイルを生成
-    summary_path = os.path.join(dirs['summary'], f"{arxiv_id}_summary.json")
+    summary_path = os.path.join(summary_dir, f"{arxiv_id}_summary.json")
     summary_data = {
         "title": paper.title,
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "keywords": " ".join([k for k in paper.categories if k]),  # 論文のカテゴリ情報を保存
         "summary": summary['summary'],
         "post_text": summary['post_text'],
         "arxiv_id": arxiv_id
